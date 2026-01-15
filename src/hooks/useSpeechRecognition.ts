@@ -23,19 +23,17 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
 
         console.log("Available Moonshine classes:", Object.keys(Moonshine))
 
-        // Try MicrophoneTranscriber first
         if (Moonshine.MicrophoneTranscriber && !useFallback) {
           console.log("Using MicrophoneTranscriber...")
           const transcriber = new Moonshine.MicrophoneTranscriber(
-            "model/tiny", // Use the basic tiny model
+            "model/tiny", 
             {
               onTranscriptionCommitted: (text: string) => {
                 console.log("Moonshine transcription:", JSON.stringify(text))
 
-                // Check if the transcription looks reasonable (contains English words)
                 const isReasonable = text && text.length > 1 && text.length < 100 &&
-                  /[a-zA-Z]{3,}/.test(text) && // Has at least 3 consecutive letters
-                  !/[\u0080-\uFFFF]/.test(text) // No non-ASCII characters
+                  /[a-zA-Z]{3,}/.test(text) && 
+                  !/[\u0080-\uFFFF]/.test(text) 
 
                 if (isReasonable) {
                   console.log("Using Moonshine transcription:", text)
@@ -50,13 +48,12 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
                 console.log("Moonshine updated:", text)
               }
             },
-            true // Enable VAD
+            true 
           )
 
           recognitionRef.current = transcriber
           console.log("Moonshine MicrophoneTranscriber initialized")
         } else {
-          // Fallback to browser Speech Recognition
           console.log("Using browser Speech Recognition fallback")
           const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
@@ -168,9 +165,7 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
       try {
         console.log("Starting speech recognition...")
         recognitionRef.current.start()
-        // For MicrophoneTranscriber, we don't set listening here as it manages its own state
         if (recognitionRef.current.constructor.name === 'MoonshineSpeechRecognition') {
-          // Only set listening for the event-based API
         } else {
           setListening(true)
         }
@@ -189,9 +184,7 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
       try {
         console.log("Stopping speech recognition...")
         recognitionRef.current.stop()
-        // For MicrophoneTranscriber, we don't set listening here as it manages its own state
         if (recognitionRef.current.constructor.name === 'MoonshineSpeechRecognition') {
-          // Only set listening for the event-based API
         } else {
           setListening(false)
         }
