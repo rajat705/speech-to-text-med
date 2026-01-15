@@ -14,9 +14,7 @@ export default function Home() {
     listening,
     startListening,
     stopListening,
-    error,
     isInitializing,
-    isUsingFallback,
   } = useSpeechRecognition(handleTranscript)
 
   const handleReset = () => {
