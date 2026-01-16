@@ -6,7 +6,7 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
   const [listening, setListening] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
-  const [useFallback, setUseFallback] = useState(true)
+  const [useFallback, setUseFallback] = useState(false)
 
   useEffect(() => {
     if (!onTranscript) {
@@ -17,43 +17,108 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
     const initializeRecognition = async () => {
       try {
         console.log("Checking if Moonshine is available...")
-        if (!Moonshine) {
-          throw new Error("Moonshine JS not loaded")
+        let moonshinInitialized = false
+        
+        // Try to use Moonshine if available and not in fallback mode
+        if (!useFallback && Moonshine) {
+          console.log("Available Moonshine classes:", Object.keys(Moonshine))
+          
+          // Option 1: Try MicrophoneTranscriber
+          if (Moonshine.MicrophoneTranscriber && !moonshinInitialized) {
+            try {
+              console.log("Using MicrophoneTranscriber...")
+              const transcriber = new Moonshine.MicrophoneTranscriber(
+                "model/tiny", 
+                {
+                  onTranscriptionCommitted: (text: string) => {
+                    console.log("Moonshine transcription:", JSON.stringify(text))
+
+                    const isReasonable = text && text.length > 1 && text.length < 100 &&
+                      /[a-zA-Z]{3,}/.test(text) && 
+                      !/[\u0080-\uFFFF]/.test(text) 
+
+                    if (isReasonable) {
+                      console.log("Using Moonshine transcription:", text)
+                      onTranscript(text)
+                    } else {
+                      console.log("Moonshine transcription looks garbled, switching to browser fallback")
+                      setUseFallback(true)
+                      setError("Moonshine produced garbled text, switching to browser speech recognition")
+                    }
+                  },
+                  onTranscriptionUpdated: (text: string) => {
+                    console.log("Moonshine updated:", text)
+                  }
+                },
+                true 
+              )
+
+              recognitionRef.current = transcriber
+              moonshinInitialized = true
+              console.log("Moonshine MicrophoneTranscriber initialized successfully")
+              setError(null)
+              setIsInitializing(false)
+              return
+            } catch (err) {
+              console.error("Failed to initialize MicrophoneTranscriber:", err)
+              console.log("Trying next option...")
+            }
+          }
+          
+          // Option 2: Try MoonshineSpeechRecognition
+          if (Moonshine.MoonshineSpeechRecognition && !moonshinInitialized) {
+            try {
+              console.log("Using MoonshineSpeechRecognition...")
+              const recognition = new Moonshine.MoonshineSpeechRecognition()
+              recognition.continuous = true
+              recognition.interimResults = true
+              recognition.lang = "en-US"
+
+              recognition.addEventListener("start", () => {
+                console.log("Speech recognition started")
+                setListening(true)
+              })
+
+              recognition.addEventListener("end", () => {
+                console.log("Speech recognition ended")
+                setListening(false)
+              })
+
+              recognition.addEventListener("result", (event: any) => {
+                console.log("Speech recognition result event:", event)
+                try {
+                  const transcript = event.results?.[0]?.[0]?.transcript
+                  if (transcript) {
+                    console.log("Transcript from Moonshine:", transcript)
+                    onTranscript(transcript)
+                  } else {
+                    console.log("No transcript found in result event")
+                  }
+                } catch (err) {
+                  console.error("Error processing result event:", err)
+                }
+              })
+
+              recognition.addEventListener("error", (event: any) => {
+                console.error("Speech recognition error:", event)
+                setError(`Speech recognition error: ${event.error || 'Unknown error'}`)
+              })
+
+              recognitionRef.current = recognition
+              moonshinInitialized = true
+              console.log("MoonshineSpeechRecognition initialized successfully")
+              setError(null)
+              setIsInitializing(false)
+              return
+            } catch (err) {
+              console.error("Failed to initialize MoonshineSpeechRecognition:", err)
+              console.log("Falling back to browser speech recognition...")
+            }
+          }
         }
 
-        console.log("Available Moonshine classes:", Object.keys(Moonshine))
-
-        if (Moonshine.MicrophoneTranscriber && !useFallback) {
-          console.log("Using MicrophoneTranscriber...")
-          const transcriber = new Moonshine.MicrophoneTranscriber(
-            "model/tiny", 
-            {
-              onTranscriptionCommitted: (text: string) => {
-                console.log("Moonshine transcription:", JSON.stringify(text))
-
-                const isReasonable = text && text.length > 1 && text.length < 100 &&
-                  /[a-zA-Z]{3,}/.test(text) && 
-                  !/[\u0080-\uFFFF]/.test(text) 
-
-                if (isReasonable) {
-                  console.log("Using Moonshine transcription:", text)
-                  onTranscript(text)
-                } else {
-                  console.log("Moonshine transcription looks garbled, switching to browser fallback")
-                  setUseFallback(true)
-                  setError("Moonshine produced garbled text, switching to browser speech recognition")
-                }
-              },
-              onTranscriptionUpdated: (text: string) => {
-                console.log("Moonshine updated:", text)
-              }
-            },
-            true 
-          )
-
-          recognitionRef.current = transcriber
-          console.log("Moonshine MicrophoneTranscriber initialized")
-        } else {
+        // Fallback to browser Speech Recognition only if Moonshine didn't initialize
+        if (!moonshinInitialized) {
           console.log("Using browser Speech Recognition fallback")
           const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
@@ -98,55 +163,12 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
 
           recognitionRef.current = recognition
           console.log("Browser Speech Recognition initialized")
+          
+          setError(null)
+          setIsInitializing(false)
         }
-
-        if (!useFallback && Moonshine.MoonshineSpeechRecognition) {
-          console.log("Using MoonshineSpeechRecognition...")
-          const recognition = new Moonshine.MoonshineSpeechRecognition()
-          recognition.continuous = true
-          recognition.interimResults = true
-          recognition.lang = "en-US"
-
-          recognition.addEventListener("start", () => {
-            console.log("Speech recognition started")
-            setListening(true)
-          })
-
-          recognition.addEventListener("end", () => {
-            console.log("Speech recognition ended")
-            setListening(false)
-          })
-
-          recognition.addEventListener("result", (event: any) => {
-            console.log("Speech recognition result event:", event)
-            try {
-              if (event.results && event.results[0] && event.results[0][0] && event.results[0][0].transcript) {
-                const transcript = event.results[0][0].transcript
-                console.log("Transcript from Moonshine:", transcript)
-                onTranscript(transcript)
-              } else {
-                console.log("No transcript found in result event")
-              }
-            } catch (err) {
-              console.error("Error processing result event:", err)
-            }
-          })
-
-          recognition.addEventListener("error", (event: any) => {
-            console.error("Speech recognition error:", event)
-            setError(`Speech recognition error: ${event.error || 'Unknown error'}`)
-          })
-
-          recognitionRef.current = recognition
-          console.log("MoonshineSpeechRecognition initialized successfully")
-        } else {
-          throw new Error("No compatible Moonshine speech recognition class found")
-        }
-
-        setError(null)
-        setIsInitializing(false)
       } catch (err) {
-        console.error("Failed to initialize Moonshine speech recognition:", err)
+        console.error("Failed to initialize speech recognition:", err)
         setError(`Failed to initialize speech recognition: ${err}`)
         setIsInitializing(false)
       }
