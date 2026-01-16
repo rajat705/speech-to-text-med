@@ -6,7 +6,7 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
   const [listening, setListening] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
-  const [useFallback, setUseFallback] = useState(true)
+  const [useFallback, setUseFallback] = useState(false)
 
   useEffect(() => {
     if (!onTranscript) {
@@ -117,54 +117,56 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
           }
         }
 
-        // Fallback to browser Speech Recognition if Moonshine didn't initialize
-        console.log("Using browser Speech Recognition fallback")
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        // Fallback to browser Speech Recognition only if Moonshine didn't initialize
+        if (!moonshinInitialized) {
+          console.log("Using browser Speech Recognition fallback")
+          const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
-        if (!SpeechRecognition) {
-          throw new Error("Speech recognition not supported in this browser")
-        }
+          if (!SpeechRecognition) {
+            throw new Error("Speech recognition not supported in this browser")
+          }
 
-        const recognition = new SpeechRecognition()
-        recognition.continuous = true
-        recognition.interimResults = true
-        recognition.lang = "en-US"
+          const recognition = new SpeechRecognition()
+          recognition.continuous = true
+          recognition.interimResults = true
+          recognition.lang = "en-US"
 
-        recognition.onstart = () => {
-          console.log("Browser speech recognition started")
-          setListening(true)
-        }
+          recognition.onstart = () => {
+            console.log("Browser speech recognition started")
+            setListening(true)
+          }
 
-        recognition.onend = () => {
-          console.log("Browser speech recognition ended")
-          setListening(false)
-        }
+          recognition.onend = () => {
+            console.log("Browser speech recognition ended")
+            setListening(false)
+          }
 
-        recognition.onresult = (event: any) => {
-          let finalText = ""
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const result = event.results[i]
-            if (result.isFinal) {
-              finalText += result[0].transcript + " "
+          recognition.onresult = (event: any) => {
+            let finalText = ""
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const result = event.results[i]
+              if (result.isFinal) {
+                finalText += result[0].transcript + " "
+              }
+            }
+
+            if (finalText) {
+              console.log("Browser transcription:", finalText.trim())
+              onTranscript(finalText.trim())
             }
           }
 
-          if (finalText) {
-            console.log("Browser transcription:", finalText.trim())
-            onTranscript(finalText.trim())
+          recognition.onerror = (event: any) => {
+            console.error("Browser speech recognition error:", event)
+            setError(`Speech recognition error: ${event.error}`)
           }
-        }
 
-        recognition.onerror = (event: any) => {
-          console.error("Browser speech recognition error:", event)
-          setError(`Speech recognition error: ${event.error}`)
+          recognitionRef.current = recognition
+          console.log("Browser Speech Recognition initialized")
+          
+          setError(null)
+          setIsInitializing(false)
         }
-
-        recognitionRef.current = recognition
-        console.log("Browser Speech Recognition initialized")
-        
-        setError(null)
-        setIsInitializing(false)
       } catch (err) {
         console.error("Failed to initialize speech recognition:", err)
         setError(`Failed to initialize speech recognition: ${err}`)
