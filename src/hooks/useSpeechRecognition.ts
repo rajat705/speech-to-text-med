@@ -87,8 +87,8 @@ export function useSpeechRecognition(onTranscript?: (text: string) => void) {
               recognition.addEventListener("result", (event: any) => {
                 console.log("Speech recognition result event:", event)
                 try {
-                  if (event.results && event.results[0] && event.results[0][0] && event.results[0][0].transcript) {
-                    const transcript = event.results[0][0].transcript
+                  const transcript = event.results?.[0]?.[0]?.transcript
+                  if (transcript) {
                     console.log("Transcript from Moonshine:", transcript)
                     onTranscript(transcript)
                   } else {

@@ -1,6 +1,6 @@
 # Security Vulnerability Report
 
-## npm audit findings (as of January 16, 2026)
+## npm audit findings (as of code review date)
 
 ### Summary
 - **Total vulnerabilities**: 51 moderate severity issues
